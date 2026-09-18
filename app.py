@@ -226,6 +226,16 @@ def para_excel(df_export):
     return output.getvalue()
 
 
+def nome_arquivo_unidade(unidade):
+    nomes = {
+        "RENAULT UNAÍ 17730943000172": "renault_unai.xlsx",
+        "NISSAN UNAÍ 17168524000199": "nissan_unai.xlsx",
+        "PARACATU 71145668000256": "paracatu.xlsx",
+        "FIAT UNAÍ 71145668000175": "fiat_unai.xlsx",
+    }
+    return nomes.get(unidade, "titulos_em_aberto.xlsx")
+
+
 # =========================
 # TÍTULO
 # =========================
@@ -406,24 +416,47 @@ st.dataframe(
 # =========================
 st.subheader("Exportar")
 
-col_exp1, col_exp2 = st.columns(2)
-
 export_df = tabela.copy()
 export_df["Data cad"] = export_df["Data cad"].dt.strftime("%d/%m/%Y")
 export_df["Data vencimento"] = export_df["Data vencimento"].dt.strftime("%d/%m/%Y")
 
-with col_exp1:
-    st.download_button(
-        label="📥 Baixar Excel",
-        data=para_excel(export_df),
-        file_name="titulos_em_aberto_primavias.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+st.caption("Baixe um arquivo Excel separado para cada cliente/unidade, respeitando os filtros aplicados no painel.")
 
-with col_exp2:
-    st.download_button(
-        label="📥 Baixar CSV",
-        data=export_df.to_csv(index=False, sep=";", encoding="utf-8-sig"),
-        file_name="titulos_em_aberto_primavias.csv",
-        mime="text/csv"
-    )
+ordem_unidades = [
+    "RENAULT UNAÍ 17730943000172",
+    "NISSAN UNAÍ 17168524000199",
+    "PARACATU 71145668000256",
+    "FIAT UNAÍ 71145668000175",
+]
+
+rotulos = {
+    "RENAULT UNAÍ 17730943000172": "📥 Renault Unaí",
+    "NISSAN UNAÍ 17168524000199": "📥 Nissan Unaí",
+    "PARACATU 71145668000256": "📥 Paracatu",
+    "FIAT UNAÍ 71145668000175": "📥 Fiat Unaí",
+}
+
+cols_download = st.columns(4)
+
+for col, unidade in zip(cols_download, ordem_unidades):
+    df_unidade = export_df[export_df["Unidade"] == unidade].copy()
+
+    with col:
+        st.download_button(
+            label=rotulos[unidade],
+            data=para_excel(df_unidade),
+            file_name=nome_arquivo_unidade(unidade),
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            disabled=df_unidade.empty,
+        )
+        st.caption(f"{len(df_unidade)} título(s)")
+
+st.divider()
+
+st.download_button(
+    label="📥 Baixar CSV consolidado",
+    data=export_df.to_csv(index=False, sep=";", encoding="utf-8-sig"),
+    file_name="titulos_em_aberto_primavias.csv",
+    mime="text/csv",
+)
