@@ -113,9 +113,58 @@ def encontrar_coluna(df, nome_base):
 
 @st.cache_data(show_spinner=False)
 def processar_planilha(arquivo):
-    xls = pd.ExcelFile(arquivo)
-    aba = xls.sheet_names[0]
-    df = pd.read_excel(arquivo, sheet_name=aba)
+    nome_arquivo = getattr(arquivo, "name", "").lower()
+
+    if nome_arquivo.endswith(".csv"):
+        # CSV exportado pelo sistema possui linhas de cabeçalho/relatório
+        # antes da tabela. Localizamos automaticamente a linha que começa
+        # com CLIENTE e usamos essa linha como cabeçalho.
+        bruto = arquivo.getvalue()
+
+        texto = None
+        encoding_usado = None
+        for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin1"):
+            try:
+                texto = bruto.decode(encoding)
+                encoding_usado = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if texto is None:
+            raise ValueError("Não foi possível identificar a codificação do CSV.")
+
+        linhas = texto.splitlines()
+        linha_cabecalho = None
+
+        for i, linha in enumerate(linhas):
+            if linha.strip().upper().startswith("CLIENTE;"):
+                linha_cabecalho = i
+                break
+
+        if linha_cabecalho is None:
+            raise ValueError(
+                "Cabeçalho do CSV não encontrado. Era esperada uma linha iniciando por CLIENTE."
+            )
+
+        arquivo.seek(0)
+        df = pd.read_csv(
+            arquivo,
+            sep=";",
+            encoding=encoding_usado,
+            skiprows=linha_cabecalho,
+            dtype=str,
+            engine="python",
+        )
+
+        # O relatório CSV pode trazer colunas vazias/repetidas entre CLIENTE
+        # e VENCTO. O pandas renomeia essas colunas automaticamente.
+        aba = "CSV"
+
+    else:
+        xls = pd.ExcelFile(arquivo)
+        aba = xls.sheet_names[0]
+        df = pd.read_excel(arquivo, sheet_name=aba)
 
     col_vencto = encontrar_coluna(df, "VENCTO")
     col_cliente = encontrar_coluna(df, "CLIENTE")
@@ -188,9 +237,9 @@ st.caption("Leitura da planilha com correlação de cliente, unidade, duplicata,
 # UPLOAD
 # =========================
 arquivo = st.file_uploader(
-    "Insira a planilha Excel",
-    type=["xlsx", "xls"],
-    help="Envie a planilha para leitura automática."
+    "Insira a planilha Excel ou CSV",
+    type=["xlsx", "xls", "csv"],
+    help="Envie a planilha Excel ou o CSV exportado pelo sistema para leitura automática."
 )
 
 if not arquivo:
